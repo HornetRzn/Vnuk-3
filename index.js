@@ -11,7 +11,7 @@ app.listen(process.env.PORT || 3000);
 const bot = new Telegraf(process.env.TOKEN);
 
 // Настройка вебхука для Render
-const webhookUrl = `https://vnuk-3.onrender.com `;
+const webhookUrl = `https://vnuk-3.onrender.com`;
 bot.telegram.setWebhook(webhookUrl).catch(console.error);
 app.use(bot.webhookCallback('/telegraf'));
 
