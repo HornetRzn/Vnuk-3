@@ -2,52 +2,46 @@ const { Telegraf } = require('telegraf');
 const axios = require('axios');
 const express = require('express');
 
-// Инициализация сервера
 const app = express();
 app.use(express.json());
 app.listen(process.env.PORT || 3000);
 
-// Конфигурация бота
 const bot = new Telegraf(process.env.TOKEN);
 
-// Настройка вебхука
+// Вебхук для Render
 const webhookPath = `/telegraf/${bot.secretPathComponent()}`;
 const webhookUrl = `https://vnuk-3.onrender.com${webhookPath}`;
 bot.telegram.setWebhook(webhookUrl).catch(console.error);
 app.use(bot.webhookCallback(webhookPath));
 
-// Хранилища и конфигурация
-const dialogueState = new Map();
-const chatHistory = new Map();
+// Хранилища состояний
+const userSessions = new Map(); // { userId: { step: number, inAIMode: boolean } }
 
 const settings = {
   keywords: {
-    'привет': 'Да заебал ты приветами. По существу что-то будет, хомяк?',
+    'привет': 'Да заебал ты приветами 🥵 ты здесь половину парней знаешь уже...',
     'салют': 'Ты блять на празднике что ли?',
-    'пока': 'Щаслива в жопе слива!',
-    'жопа': 'Ну.... мне больше пи'
+    'пока': 'Бля… даже не трахнулись хотя бы виртуально 😭 Ты хоть в Рязани живёшь или тоже из всяких Касимовых и Солотч понаехал?!',
+    'жопа': 'Мясистая и упругая жопка — это наше 😋 Это мы принимаем, туда мы трахаем. Парни, кто на экстрим прямо в центре Рзн, м???'
   },
   ai: {
     model: "llama3-70b-8192",
-    systemPrompt: "Ты сексуальный гей, желающий флиртовать. Отвечай кратко на русском."
+    systemPrompt: "Тебя зовут Евпатий. Ты пошлый и нескромный гей, желающий флиртовать с мужчинами. Обзываешь их пошлыми словами и хочешь с каждым секса. Отвечай кратко на русском."
   }
 };
 
-// Вспомогательные функции
+// Проверка реплая на бота
 const isReplyToBot = (ctx) => 
   ctx.message?.reply_to_message?.from?.id === ctx.botInfo.id;
 
 async function generateAIResponse(userId, message) {
   try {
-    const history = chatHistory.get(userId) || [];
-    history.push({ role: "user", content: message });
-
     const response = await axios.post(
       "https://api.groq.com/openai/v1/chat/completions",
       {
         messages: [
           { role: "system", content: settings.ai.systemPrompt },
-          ...history.slice(-3)
+          { role: "user", content: message }
         ],
         model: settings.ai.model
       },
@@ -58,64 +52,66 @@ async function generateAIResponse(userId, message) {
         }
       }
     );
-
-    const aiReply = response.data.choices[0].message.content;
-    history.push({ role: "assistant", content: aiReply });
-    chatHistory.set(userId, history);
-
-    return aiReply;
+    return response.data.choices[0].message.content;
   } catch (error) {
     console.error("AI Error:", error);
-    return "Чет я сегодня не в форме... Давай попробуем ещё раз?";
+    return "Чет я сегодня не в форме...";
   }
 }
 
-// Обработчики
+// Обработчик сообщений
 bot.on('message', async (ctx) => {
-  const chatId = ctx.chat.id;
   const userId = ctx.from.id;
   const message = ctx.message.text?.toLowerCase() || '';
-  const key = `${chatId}:${userId}`;
+  const session = userSessions.get(userId) || { step: 0, inAIMode: false };
   const replyOpt = { reply_to_message_id: ctx.message.message_id };
 
-  const foundKeyword = Object.keys(settings.keywords)
-    .find(k => message.includes(k));
-
-  if (foundKeyword) {
-    await ctx.reply(settings.keywords[foundKeyword], replyOpt);
-    dialogueState.delete(key);
+  // Режим AI
+  if (session.inAIMode && isReplyToBot(ctx)) {
+    const aiResponse = await generateAIResponse(userId, message);
+    await ctx.reply(aiResponse, replyOpt);
     return;
   }
 
-  if (isReplyToBot(ctx)) {
-    const state = dialogueState.get(key) || { step: 1 };
+  // Проверка ключевых слов
+  const keywordResponse = Object.entries(settings.keywords)
+    .find(([key]) => message.includes(key))?.[1];
 
-    switch(state.step) {
+  if (keywordResponse) {
+    await ctx.reply(keywordResponse, replyOpt);
+    userSessions.set(userId, { step: 1, inAIMode: false });
+    return;
+  }
+
+  // Диалоговая цепочка
+  if (isReplyToBot(ctx)) {
+    switch(session.step) {
       case 1:
-        await ctx.reply('Во мне однажды такой пассивчик был...', replyOpt);
-        dialogueState.set(key, { step: 2 });
+        await ctx.reply('Во мне однажды такой пассивчик был... там хуй сантиметра 23 😳 Ну да, он пассив, но что-то решил присунуть в запале ночных страстей. В Рзн я таких не встречал ещё', replyOpt);
+        userSessions.set(userId, { step: 2, inAIMode: false });
         break;
 
       case 2:
         await ctx.reply('Интересно! В Рязани такая ебля возможна?', replyOpt);
-        dialogueState.set(key, { step: 3 });
+        userSessions.set(userId, { step: 3, inAIMode: true }); // Активируем AI
         break;
 
-      case 3:
-        const aiResponse = await generateAIResponse(userId, message);
-        await ctx.reply(aiResponse, replyOpt);
-        dialogueState.delete(key);
-        break;
+      default:
+        if (session.step > 2) {
+          const aiResponse = await generateAIResponse(userId, message);
+          await ctx.reply(aiResponse, replyOpt);
+        }
     }
   }
 });
 
-bot.command('start', (ctx) => 
+// Команда /start
+bot.command('start', (ctx) => {
+  userSessions.delete(ctx.from.id); // Сброс сессии
   ctx.reply('Подпишись на Гей-Рязань. Пообщаемся в чате', {
     reply_to_message_id: ctx.message.message_id
-  })
-);
+  });
+});
 
-// Обработка завершения работы
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
