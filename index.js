@@ -1,33 +1,41 @@
 const { Telegraf } = require('telegraf');
 const axios = require('axios');
+const express = require('express');
 
-const token = '8124475955:AAGfEaT9CuzUhitVUKK6oIl3rE3HSWesw3E';
-const GROQ_API_KEY = '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';
-const bot = new Telegraf(token);
+// Инициализация сервера
+const app = express();
+app.use(express.json());
+app.listen(process.env.PORT || 3000);
 
-// Хранилища
-const dialogueState = new Map(); // { "chatId:userId": { step: number } }
-const chatHistory = new Map(); // Для AI контекста
+// Конфигурация бота
+const bot = new Telegraf(process.env.TOKEN);
 
-// Конфигурация
+// Настройка вебхука для Render
+const webhookUrl = `https://vnuk-3.onrender.com `;
+bot.telegram.setWebhook(webhookUrl).catch(console.error);
+app.use(bot.webhookCallback('/telegraf'));
+
+// Хранилища и конфигурация
+const dialogueState = new Map();
+const chatHistory = new Map();
+
 const settings = {
   keywords: {
-    'привет': 'Да заебал ты приветами. По существу что-то будет, хомяк? Ну не расстраивай дедушкиного внука, отсоси хоть',
-    'салют': 'Ты блять на празднике что ли? Какие салюты, пидр???',
+    'привет': 'Да заебал ты приветами. По существу что-то будет, хомяк?',
+    'салют': 'Ты блять на празднике что ли?',
     'пока': 'Щаслива в жопе слива!',
     'жопа': 'Ну.... мне больше пи'
   },
   ai: {
     model: "llama3-70b-8192",
-    systemPrompt: "Ты сексуальный гей, желающий флиртовать. Отвечай кратко на русском языке."
+    systemPrompt: "Ты сексуальный гей, желающий флиртовать. Отвечай кратко на русском."
   }
 };
 
-// Проверка реплая на бота
+// Вспомогательные функции
 const isReplyToBot = (ctx) => 
   ctx.message?.reply_to_message?.from?.id === ctx.botInfo.id;
 
-// Генерация ответа через Groq
 async function generateAIResponse(userId, message) {
   try {
     const history = chatHistory.get(userId) || [];
@@ -44,7 +52,7 @@ async function generateAIResponse(userId, message) {
       },
       {
         headers: {
-          "Authorization": `Bearer ${GROQ_API_KEY}`,
+          "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
           "Content-Type": "application/json"
         }
       }
@@ -57,11 +65,11 @@ async function generateAIResponse(userId, message) {
     return aiReply;
   } catch (error) {
     console.error("AI Error:", error);
-    return "Что-то я сегодня не в форме... Давайте попробуем ещё раз?";
+    return "Чет я сегодня не в форме... Давай попробуем ещё раз?";
   }
 }
 
-// Обработчик сообщений
+// Обработчики
 bot.on('message', async (ctx) => {
   const chatId = ctx.chat.id;
   const userId = ctx.from.id;
@@ -69,23 +77,21 @@ bot.on('message', async (ctx) => {
   const key = `${chatId}:${userId}`;
   const replyOpt = { reply_to_message_id: ctx.message.message_id };
 
-  // Всегда проверяем ключевые слова в первую очередь
   const foundKeyword = Object.keys(settings.keywords)
     .find(k => message.includes(k));
 
   if (foundKeyword) {
     await ctx.reply(settings.keywords[foundKeyword], replyOpt);
-    dialogueState.delete(key); // Сбрасываем диалог
+    dialogueState.delete(key);
     return;
   }
 
-  // Только цепочка реплаев
   if (isReplyToBot(ctx)) {
     const state = dialogueState.get(key) || { step: 1 };
 
     switch(state.step) {
       case 1:
-        await ctx.reply('Во мне однажды такой пассивчик был, что я чуть горло не выплюнул. Веришь?', replyOpt);
+        await ctx.reply('Во мне однажды такой пассивчик был...', replyOpt);
         dialogueState.set(key, { step: 2 });
         break;
 
@@ -97,18 +103,18 @@ bot.on('message', async (ctx) => {
       case 3:
         const aiResponse = await generateAIResponse(userId, message);
         await ctx.reply(aiResponse, replyOpt);
-        dialogueState.delete(key); // Завершаем диалог
+        dialogueState.delete(key);
         break;
     }
   }
 });
 
-// Команда /start
 bot.command('start', (ctx) => 
-  ctx.reply('Подпишись на Гей-Рязань. Пообщаемся в чате', 
-    { reply_to_message_id: ctx.message.message_id }
-  )
+  ctx.reply('Подпишись на Гей-Рязань. Пообщаемся в чате', {
+    reply_to_message_id: ctx.message.message_id
+  })
 );
 
-bot.launch();
+// Обработка завершения работы
 process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
