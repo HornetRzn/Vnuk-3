@@ -10,10 +10,11 @@ app.listen(process.env.PORT || 3000);
 // Конфигурация бота
 const bot = new Telegraf(process.env.TOKEN);
 
-// Настройка вебхука для Render
-const webhookUrl = `https://vnuk-3.onrender.com`;
+// Настройка вебхука
+const webhookPath = `/telegraf/${bot.secretPathComponent()}`;
+const webhookUrl = `https://vnuk-3.onrender.com${webhookPath}`;
 bot.telegram.setWebhook(webhookUrl).catch(console.error);
-app.use(bot.webhookCallback('/telegraf'));
+app.use(bot.webhookCallback(webhookPath));
 
 // Хранилища и конфигурация
 const dialogueState = new Map();
