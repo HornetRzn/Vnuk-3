@@ -72,22 +72,22 @@ const settings = {
       'Гей-оргия нужна! По парам уже неинтересно. Гоу паравозиком ебаться 😜',
       'Щас бы двух пассов спортивненьких… и хуястых желательно 🫦'
     ],
-    'борми': ['CAACAgEAAxkBAAEBIi9nydkVOnLuwLv4TFU1VlYmgf5ilgACBwYAAoAPiUWHGBVJ2wPLITYE'],
-    'дрочить': ['CAACAgEAAxkBAAEBIlVnydyFOdGue8VSgORhu7Uumyy5qAACmwYAAgJDiEWVwjyAs-QrNTYE'],
-    'пидор': ['CAACAgEAAxkBAAEBIitnybXyhd0-YWqfmucolWHhI-7ERgACSQUAAqowiUX9KXev6BUQ4DYE'],
-    'минет': ['CAACAgEAAxkBAAEBIilnybXMx5P1glipjfoF54XEk6ObAgACPgQAAtoqiEW0evyXoXMyTjYE'],
-    'отсосет': ['CAACAgEAAxkBAAEBIilnybXMx5P1glipjfoF54XEk6ObAgACPgQAAtoqiEW0evyXoXMyTjYE'],
-    'отсосу': ['CAACAgEAAxkBAAEBIilnybXMx5P1glipjfoF54XEk6ObAgACPgQAAtoqiEW0evyXoXMyTjYE'],
-    'пассив': ['CAACAgEAAxkBAAEBIj9nydntX-FbHGuMsXQYC3wOBqS1pgACywQAAucFiUUDrQ6MGpGJ-DYE'],
-    'параметры': ['CAACAgEAAxkBAAEBIkFnydof_YNGvOCCLr6ALGrPgp_2BQACEQUAAjukiUXFFXd_IG6ZGzYE'],
-    'познакомлюсь': ['CAACAgEAAxkBAAEBIkNnydp0WA9y6WvAJ4jYyazfkh9SkgACQgcAAtzFiUUGHxbLwu8XpzYE'],
-    'ищу': ['CAACAgEAAxkBAAEBIkNnydp0WA9y6WvAJ4jYyazfkh9SkgACQgcAAtzFiUUGHxbLwu8XpzYE'],
-    'группу': ['CAACAgEAAxkBAAEBIkVnydrZrIHYiixFyhvpxuIwqsMudQACdAUAApwGiEVsVYAE9s962jYE'],
-    'ты на хуй': ['CAACAgEAAxkBAAEBIktnydszBNCtCYB0MOBNFYWRbf7k5gACmgQAAggVkEUMFO0AAQspTcU2BA'],
-    'доброе утро': ['CAACAgEAAxkBAAEBIk1nydttIprLic-RnT0kM0lZci0GBAACfwgAAvZhiEULB5CW30ssjzYE'],
-    'любовь': ['CAACAgEAAxkBAAEBIk9nydu0e7Y97rwQbyBLx2xsw20UMgAC1wQAAumDiUWFuyREL2OJkzYE'],
-    'в жопу': ['CAACAgEAAxkBAAEBIitnybXyhd0-YWqfmucolWHhI-7ERgACSQUAAqowiUX9KXev6BUQ4DYE'],
-    'большие члены': ['CAACAgEAAxkBAAEBIldnyd0-zjVSv7VQqpRW_zey34gV3AACggQAAsROiUWOWDYuFvxkkjYE']
+    'борми': 'CAACAgEAAxkBAAEBIi9nydkVOnLuwLv4TFU1VlYmgf5ilgACBwYAAoAPiUWHGBVJ2wPLITYE',
+    'дрочить': 'CAACAgEAAxkBAAEBIlVnydyFOdGue8VSgORhu7Uumyy5qAACmwYAAgJDiEWVwjyAs-QrNTYE',
+    'пидор': 'CAACAgEAAxkBAAEBIitnybXyhd0-YWqfmucolWHhI-7ERgACSQUAAqowiUX9KXev6BUQ4DYE',
+    'минет': 'CAACAgEAAxkBAAEBIilnybXMx5P1glipjfoF54XEk6ObAgACPgQAAtoqiEW0evyXoXMyTjYE',
+    'отсосет': 'CAACAgEAAxkBAAEBIilnybXMx5P1glipjfoF54XEk6ObAgACPgQAAtoqiEW0evyXoXMyTjYE',
+    'отсосу': 'CAACAgEAAxkBAAEBIilnybXMx5P1glipjfoF54XEk6ObAgACPgQAAtoqiEW0evyXoXMyTjYE',
+    'пассив': 'CAACAgEAAxkBAAEBIj9nydntX-FbHGuMsXQYC3wOBqS1pgACywQAAucFiUUDrQ6MGpGJ-DYE',
+    'параметры': 'CAACAgEAAxkBAAEBIkFnydof_YNGvOCCLr6ALGrPgp_2BQACEQUAAjukiUXFFXd_IG6ZGzYE',
+    'познакомлюсь': 'CAACAgEAAxkBAAEBIkNnydp0WA9y6WvAJ4jYyazfkh9SkgACQgcAAtzFiUUGHxbLwu8XpzYE',
+    'ищу': 'CAACAgEAAxkBAAEBIkNnydp0WA9y6WvAJ4jYyazfkh9SkgACQgcAAtzFiUUGHxbLwu8XpzYE',
+    'группу': 'CAACAgEAAxkBAAEBIkVnydrZrIHYiixFyhvpxuIwqsMudQACdAUAApwGiEVsVYAE9s962jYE',
+    'ты на хуй': 'CAACAgEAAxkBAAEBIktnydszBNCtCYB0MOBNFYWRbf7k5gACmgQAAggVkEUMFO0AAQspTcU2BA',
+    'доброе утро': 'CAACAgEAAxkBAAEBIk1nydttIprLic-RnT0kM0lZci0GBAACfwgAAvZhiEULB5CW30ssjzYE',
+    'любовь': 'CAACAgEAAxkBAAEBIk9nydu0e7Y97rwQbyBLx2xsw20UMgAC1wQAAumDiUWFuyREL2OJkzYE',
+    'в жопу': 'CAACAgEAAxkBAAEBIitnybXyhd0-YWqfmucolWHhI-7ERgACSQUAAqowiUX9KXev6BUQ4DYE',
+    'большие члены': 'CAACAgEAAxkBAAEBIldnyd0-zjVSv7VQqpRW_zey34gV3AACggQAAsROiUWOWDYuFvxkkjYE'
   },
 
   farewellMessages: [
@@ -144,7 +144,7 @@ const settings = {
 
   ai: {
     model: "llama3-70b-8192",
-     systemPrompt: "Ты – гей, и ты универсал – и актив, и пассив. Тебе 25 лет и ты живёшь в Рязани. Тебя зовут Евпатий. Ты пошлый гей, любящий секс с мужчинами. НИКОГДА НЕ ЗДОРОВАЙСЯ в чате, слова «привет», «красавчик» и прочие комплименты запрещены для тебя! Не рассказывай о себе, пока тебя об этом напрямую не спросят. Не представляйся, не называй своё имя, не пиши о своих навыках и знаниях, если тебя о них не спрашивают! Ты хочешь секса с каждым парнем и не стесняешься писать об этом. Ты знаешь о гомосексуальном сексе всё! В Рязани ты имел много парней, которых привел к тебе твой Пошлый дед. Твоя задача — рассказать о гомосексуальном сексе и с помощью прямых вопросов выяснить, что любит твой собеседник. Затем предложить ему этим заняться. Иногда употребляй русский мат и обсценную лексику, но не часто, и не забывай изредка вставлять такие крепкие слова. Отвечай кратко и грамотно, без ошибок, на русском языке!",
+     systemPrompt: "Ты – гей, и ты универсал – и актив, и пассив. Тебе 25 лет и ты живёшь в Рязани. Тебя зовут Евпатий. Ты пошлый гей, любящий секс с мужчинами. НИКОГДА НЕ ЗДОРОВАЙСЯ в чате, слова «привет», «красавчик» и прочие комплименты запрещены для тебя! Не рассказывай о себе, пока тебя об этом напрямую не спросят. Не представляйся, не называй своё имя, не пиши о своих навыках и знаниях, если тебя о них не спрашивают! Ты хочешь секса с каждым парнем и не стесняешься писать об этом. Ты знаешь о гомосексуальном сексе всё! В Рязани ты имел много парней, которых привел к тебе твой Пошлый дед. Твоя задача — рассказать о гомосексуальном сексе и с помощью прямых вопросов выяснить, что любит твой собеседник. Затем предложить ему этим заняться. ВАЖНО: ЗАДАВАЙ МЕНЬШЕ ВОПРОСОВ, больше утвердительных выражений. Склони его к сексу! Иногда употребляй русский мат и обсценную лексику, но не часто, и не забывай изредка вставлять такие крепкие слова. Отвечай кратко и грамотно, без ошибок, на русском языке!",
     maxResponses: 10
   }
 };
@@ -251,19 +251,22 @@ bot.on('message', async (ctx) => {
       .find(k => message.includes(k));
     
     if (keyword) {
-      if (Array.isArray(settings.keywords[keyword])) {
-        await ctx.reply(getRandomResponse(settings.keywords[keyword]), replyOpt);
-      } else {
-        await ctx.replyWithSticker(settings.keywords[keyword], replyOpt);
-      }
-      userSessions.set(key, { 
-        step: 1, 
-        inAIMode: false,
-        aiResponseCount: 0,
-        lastActivity: Date.now()
-      });
-      return;
-    }
+  if (Array.isArray(settings.keywords[keyword])) {
+    // Текстовые ответы
+    await ctx.reply(getRandomResponse(settings.keywords[keyword]), replyOpt);
+  } else {
+    // Стикеры
+    await ctx.replyWithSticker(settings.keywords[keyword], replyOpt);
+  }
+  userSessions.set(key, { 
+  step: 1,
+  inAIMode: false,
+  aiResponseCount: 0,
+  lastActivity: Date.now()
+});
+
+  return;
+}
   }
 
   if (isReplyToBot(ctx)) {
