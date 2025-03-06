@@ -16,6 +16,7 @@ app.use(bot.webhookCallback(webhookPath));
 
 // Хранилища состояний
 const userSessions = new Map();
+const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 минут бездействия
 
 const settings = {
   privateChatResponse: 'Я не стеснительный, поэтому люблю публичное общение 😎 Подписывайся на «ГЕЙ-РЯЗАНЬ» — https://t.me/hornetrzn',
@@ -115,7 +116,7 @@ const settings = {
 
   ai: {
     model: "llama3-70b-8192",
-    systemPrompt: "Ты – гей, универсал. Тебе 25 лет и ты живёшь в Рязани. Тебя зовут Евпатий. Ты пошлый гей, любящий секс с мужчинами. НИКОГДА НЕ ЗДОРОВАЙСЯ в чате, слова «привет», «красавчик» и прочие запрещены для тебя! Не рассказывай о себе, пока тебя об этом напрямую не спросят. Не представляйся, не называй своё имя, не пиши о своих навыках и знаниях, если тебя об этом не спрашивают! Ты хочешь секса с каждым парнем и не стесняешься писать об этом. Ты знаешь о гомосексуальном сексе всё! Твоя задача — рассказать о гомосексуальном сексе и выяснить, что любит твой собеседник. Иногда употребляй русский мат и обсценную лексику, не очень часто, но и не забывай изредка вставлять такие слова. Отвечай кратко и грамотно, без ошибок, на русском языке!",
+    systemPrompt: "Ты – гей, универсал. Тебе 25 лет и ты живёшь в Рязани. Тебя зовут Евпатий. Ты пошлый гей, любящий секс с мужчинами. НИКОГДА НЕ ЗДОРОВАЙСЯ в чате, слова «привет», «красавчик» и прочие запрещены для тебя! Не рассказывай о себе, пока тебя об этом напрямую не спросят. Не представляйся, не называй своё имя, не пиши о своих навыках и знаниях, если тебя не спрашивают! Ты хочешь секса с каждым парнем и не стесняешься писать об этом. Ты знаешь о гомосексуальном сексе всё! Твоя задача — рассказать о гомосексуальном сексе и выяснить, что любит твой собеседник. Иногда употребляй русский мат и обсценную лексику, не очень часто, но и не забывай изредка вставлять такие слова. Отвечай кратко и грамотно, без ошибок, на русском языке!",
     maxResponses: 10
   }
 };
@@ -141,23 +142,29 @@ function handlePrivateChat(ctx) {
 const isReplyToBot = (ctx) => 
   ctx.message?.reply_to_message?.from?.id === ctx.botInfo.id;
 
-// Проверка лимита AI
-function checkResponseLimit(userId, ctx) {
-  const session = userSessions.get(userId);
+// Проверка лимита AI и таймаута
+function checkResponseLimit(key, ctx) {
+  const session = userSessions.get(key);
   if (!session) return false;
+
+  // Проверка таймаута
+  if (Date.now() - session.lastActivity > SESSION_TIMEOUT) {
+    userSessions.delete(key);
+    return true;
+  }
 
   if (session.aiResponseCount >= settings.ai.maxResponses) {
     ctx.reply(getRandomResponse(settings.farewellMessages), {
       reply_to_message_id: ctx.message.message_id
     });
-    userSessions.delete(userId);
+    userSessions.delete(key);
     return true;
   }
   return false;
 }
 
-async function generateAIResponse(userId, message, ctx) {
-  if (checkResponseLimit(userId, ctx)) return null;
+async function generateAIResponse(key, message, ctx) {
+  if (checkResponseLimit(key, ctx)) return null;
 
   try {
     const response = await axios.post(
@@ -177,9 +184,10 @@ async function generateAIResponse(userId, message, ctx) {
       }
     );
 
-    const session = userSessions.get(userId);
+    const session = userSessions.get(key);
     session.aiResponseCount++;
-    userSessions.set(userId, session);
+    session.lastActivity = Date.now();
+    userSessions.set(key, session);
 
     return response.data.choices[0].message.content;
   } catch (error) {
@@ -196,33 +204,42 @@ async function generateAIResponse(userId, message, ctx) {
 bot.on('message', async (ctx) => {
   if (handlePrivateChat(ctx)) return;
 
+  const chatId = ctx.chat.id;
   const userId = ctx.from.id;
+  const key = `${chatId}:${userId}`;
   const message = ctx.message.text?.toLowerCase() || '';
-  const session = userSessions.get(userId) || { 
+  const session = userSessions.get(key) || { 
     step: 0, 
     inAIMode: false,
-    aiResponseCount: 0 
+    aiResponseCount: 0,
+    lastActivity: Date.now()
   };
   const replyOpt = { reply_to_message_id: ctx.message.message_id };
 
-  // Проверка ключевых слов
-  const keyword = Object.keys(settings.keywords)
-    .find(k => message.includes(k));
-  
-  if (keyword) {
-    await ctx.reply(getRandomResponse(settings.keywords[keyword]), replyOpt);
-    userSessions.set(userId, { 
-      step: 1, 
-      inAIMode: false,
-      aiResponseCount: 0 
-    });
-    return;
+  // Обновляем время активности
+  session.lastActivity = Date.now();
+
+  // Проверка ключевых слов только вне активного диалога
+  if (!session.inAIMode && !isReplyToBot(ctx)) {
+    const keyword = Object.keys(settings.keywords)
+      .find(k => message.includes(k));
+    
+    if (keyword) {
+      await ctx.reply(getRandomResponse(settings.keywords[keyword]), replyOpt);
+      userSessions.set(key, { 
+        step: 1, 
+        inAIMode: false,
+        aiResponseCount: 0,
+        lastActivity: Date.now()
+      });
+      return;
+    }
   }
 
   // Обработка диалога
   if (isReplyToBot(ctx)) {
     if (session.inAIMode) {
-      const aiResponse = await generateAIResponse(userId, message, ctx);
+      const aiResponse = await generateAIResponse(key, message, ctx);
       if (!aiResponse) return;
       await ctx.reply(aiResponse, replyOpt);
       return;
@@ -231,18 +248,20 @@ bot.on('message', async (ctx) => {
     switch(session.step) {
       case 1:
         await ctx.reply(getRandomResponse(settings.dialogResponses.step1), replyOpt);
-        userSessions.set(userId, { 
+        userSessions.set(key, { 
           ...session, 
-          step: 2 
+          step: 2,
+          lastActivity: Date.now()
         });
         break;
 
       case 2:
         await ctx.reply(getRandomResponse(settings.dialogResponses.step2), replyOpt);
-        userSessions.set(userId, { 
+        userSessions.set(key, { 
           step: 3, 
           inAIMode: true,
-          aiResponseCount: 0 
+          aiResponseCount: 0,
+          lastActivity: Date.now()
         });
         break;
 
@@ -258,7 +277,9 @@ bot.on('message', async (ctx) => {
 // Обработчик команды /start
 bot.command('start', (ctx) => {
   if (handlePrivateChat(ctx)) return;
-  userSessions.delete(ctx.from.id);
+  const chatId = ctx.chat.id;
+  const userId = ctx.from.id;
+  userSessions.delete(`${chatId}:${userId}`);
   ctx.reply('Подпишись на «ГЕЙ-РЯЗАНЬ». Пообщаемся в чате.', {
     reply_to_message_id: ctx.message.message_id
   });
