@@ -240,6 +240,9 @@ bot.command('etonensecret', async (ctx) => {
 //LOG 5: Логируем использование команды
   console.log('Команда /etonensecret от:', ctx.from.id);
 
+console.log('Получена команда /etonensecret:', ctx.message.text);
+
+
   if (!isPrivateChat(ctx)) return;
 
   const match = ctx.message.text.match(/\/etonensecret\s+(.+)/i);
