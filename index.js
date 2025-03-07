@@ -144,12 +144,12 @@ const settings = {
 
   ai: {
     model: "llama3-70b-8192",
-     systemPrompt: "Ты – гей, и ты универсал – и актив, и пассив. Тебе 25 лет и ты живёшь в Рязани. Тебя зовут Евпатий. Ты пошлый гей, любящий секс с мужчинами. НИКОГДА НЕ ЗДОРОВАЙСЯ в чате, слова «привет», «красавчик» и прочие комплименты запрещены для тебя! Не рассказывай о себе, пока тебя об этом напрямую не спросят. Не представляйся, не называй своё имя, не пиши о своих навыках и знаниях, если тебя о них не спрашивают! Ты хочешь секса с каждым парнем и не стесняешься писать об этом. Ты знаешь о гомосексуальном сексе всё! В Рязани ты имел много парней, которых привел к тебе твой Пошлый дед. Твоя задача — рассказать о гомосексуальном сексе и с помощью прямых вопросов выяснить, что любит твой собеседник. Затем предложить ему этим заняться. ВАЖНО: ЗАДАВАЙ МЕНЬШЕ ВОПРОСОВ, больше утвердительных выражений. Склони его к сексу! Иногда употребляй русский мат и обсценную лексику, но не часто, и не забывай изредка вставлять такие крепкие слова. Отвечай кратко и грамотно, без ошибок, на русском языке!",
+    systemPrompt: "Ты – гей, и ты универсал – и актив, и пассив. Тебе 25 лет и ты живёшь в Рязани. Тебя зовут Евпатий. Ты пошлый гей, любящий секс с мужчинами. НИКОГДА НЕ ЗДОРОВАЙСЯ в чате, слова «привет», «красавчик» и прочие комплименты запрещены для тебя! Не рассказывай о себе, пока тебя об этом напрямую не спросят. Не представляйся, не называй своё имя, не пиши о своих навыках и знаниях, если тебя о них не спрашивают! Ты хочешь секса с каждым парнем и не стесняешься писать об этом. Ты знаешь о гомосексуальном сексе всё! В Рязани ты имел много парней, которых привел к тебе твой Пошлый дед. Твоя задача — рассказать о гомосексуальном сексе и с помощью прямых вопросов выяснить, что любит твой собеседник. Затем предложить ему этим заняться. ВАЖНО: ЗАДАВАЙ МЕНЬШЕ ВОПРОСОВ, больше утвердительных выражений. Склони его к сексу! Иногда употребляй русский мат и обсценную лексику, но не часто, и не забывай изредка вставлять такие крепкие слова. Отвечай кратко и грамотно, без ошибок, на русском языке!", // Полный промпт
     maxResponses: 10
   }
 };
 
-const TARGET_CHAT_ID = "-1002311068598"; // Замените на ваш ID чата
+const TARGET_CHAT_ID = "-1002311068598"; // Ваш ID чата
 
 function getRandomResponse(responses) {
   return responses[Math.floor(Math.random() * responses.length)];
@@ -168,9 +168,63 @@ function handlePrivateChat(ctx) {
 const isReplyToBot = (ctx) => 
   ctx.message?.reply_to_message?.from?.id === ctx.botInfo.id;
 
-// ... функции checkResponseLimit и generateAIResponse ...
+function checkResponseLimit(key, ctx) {
+  const session = userSessions.get(key);
+  if (!session) return false;
 
-// Обработчик команды /start
+  if (Date.now() - session.lastActivity > SESSION_TIMEOUT) {
+    userSessions.delete(key);
+    return true;
+  }
+
+  if (session.aiResponseCount >= settings.ai.maxResponses) {
+    ctx.reply(getRandomResponse(settings.farewellMessages), {
+      reply_to_message_id: ctx.message.message_id
+    });
+    userSessions.delete(key);
+    return true;
+  }
+  return false;
+}
+
+async function generateAIResponse(key, message, ctx) {
+  if (checkResponseLimit(key, ctx)) return null;
+
+  try {
+    const response = await axios.post(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        messages: [
+          { role: "system", content: settings.ai.systemPrompt },
+          { role: "user", content: message }
+        ],
+        model: settings.ai.model
+      },
+      {
+        headers: {
+          "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const session = userSessions.get(key);
+    session.aiResponseCount++;
+    session.lastActivity = Date.now();
+    userSessions.set(key, session);
+
+    return response.data.choices[0].message.content;
+  } catch (error) {
+    console.error("AI Error:", error);
+    return getRandomResponse([
+      "Голова разболелась 🤒",
+      "Чёт я торможу. Погоди…",
+      "Блин. Я, кажется, телефон разбил 😳"
+    ]);
+  }
+}
+
+// Обработчики команд
 bot.command('start', (ctx) => {
   if (handlePrivateChat(ctx)) return;
   const chatId = ctx.chat.id;
@@ -181,8 +235,11 @@ bot.command('start', (ctx) => {
   });
 });
 
-// ▼▼▼▼▼ ДОБАВЛЕННЫЙ ОБРАБОТЧИК /secret ▼▼▼▼▼
 bot.command('etonensecret', async (ctx) => {
+
+//LOG 5: Логируем использование команды
+  console.log('Команда /etonensecret от:', ctx.from.id);
+
   if (!isPrivateChat(ctx)) return;
 
   const match = ctx.message.text.match(/\/etonensecret\s+(.+)/i);
@@ -198,10 +255,23 @@ bot.command('etonensecret', async (ctx) => {
 
 // Обработчик сообщений
 bot.on('message', async (ctx) => {
+
+// LOG 1: Логируем все входящие сообщения
+  console.log('Получено сообщение:', {
+    chatId: ctx.chat.id,
+    userId: ctx.from.id,
+    text: ctx.message.text,
+    isReply: !!ctx.message.reply_to_message
+  });
+  
   if (handlePrivateChat(ctx)) return;
 
   // Проверка ответов в целевом чате
   if (isReplyToBot(ctx) && String(ctx.chat.id) === TARGET_CHAT_ID) {
+
+// LOG 2: Логируем активацию AI-режима
+    console.log('Активация AI-режима для:', ctx.from.id);
+
     const key = `${ctx.chat.id}:${ctx.from.id}`;
     userSessions.set(key, {
       step: 3,
@@ -211,12 +281,103 @@ bot.on('message', async (ctx) => {
     });
 
     const aiResponse = await generateAIResponse(key, ctx.message.text, ctx);
-    return ctx.reply(aiResponse, { reply_to_message_id: ctx.message.message_id });
+
+// LOG 3: Логируем ответ AI
+    console.log('AI ответил:', aiResponse); 
+
+    await ctx.reply(aiResponse, { 
+      reply_to_message_id: ctx.message.message_id 
+    });
+    return;
   }
 
-  // ... остальная логика обработки сообщений ...
+  // Остальная логика обработки сообщений
+  const chatId = ctx.chat.id;
+  const userId = ctx.from.id;
+  const key = `${chatId}:${userId}`;
+  const message = ctx.message.text?.toLowerCase() || '';
+  const session = userSessions.get(key) || { 
+    step: 0, 
+    inAIMode: false,
+    aiResponseCount: 0,
+    lastActivity: Date.now()
+  };
+  const replyOpt = { reply_to_message_id: ctx.message.message_id };
+
+  session.lastActivity = Date.now();
+
+  // Обработка ответа на стикер
+  if (isReplyToBot(ctx) && ctx.message.reply_to_message?.sticker) {
+    await ctx.reply(getRandomResponse(settings.stickerReplyPhrases), replyOpt);
+    userSessions.delete(key);
+    return;
+  }
+
+  if (!session.inAIMode && !isReplyToBot(ctx)) {
+    const keyword = Object.keys(settings.keywords)
+      .find(k => message.includes(k));
+    
+    if (keyword) {
+      if (Array.isArray(settings.keywords[keyword])) {
+        await ctx.reply(getRandomResponse(settings.keywords[keyword]), replyOpt);
+      } else {
+        await ctx.replyWithSticker(settings.keywords[keyword], replyOpt);
+      }
+      userSessions.set(key, { 
+        step: 1,
+        inAIMode: false,
+        aiResponseCount: 0,
+        lastActivity: Date.now()
+      });
+      return;
+    }
+  }
+
+  if (isReplyToBot(ctx)) {
+    if (session.inAIMode) {
+      const aiResponse = await generateAIResponse(key, message, ctx);
+
+// LOG 4: Логируем ошибки AI
+      if (!aiResponse) {
+        console.error('AI не вернул ответ');
+        return;
+      }
+
+      if (!aiResponse) return;
+      await ctx.reply(aiResponse, replyOpt);
+      return;
+    }
+
+    switch(session.step) {
+      case 1:
+        await ctx.reply(getRandomResponse(settings.dialogResponses.step1), replyOpt);
+        userSessions.set(key, { 
+          ...session, 
+          step: 2,
+          lastActivity: Date.now()
+        });
+        break;
+
+      case 2:
+        await ctx.reply(getRandomResponse(settings.dialogResponses.step2), replyOpt);
+        userSessions.set(key, { 
+          step: 3, 
+          inAIMode: true,
+          aiResponseCount: 0,
+          lastActivity: Date.now()
+        });
+        break;
+
+      default:
+        await ctx.reply(getRandomResponse([
+          "Вот прям извини, малыш 😔 немного не до тебя сейчас. Позже договорим, если не забудем. Чмокаю тебя в попку 💋",
+          "Ой. Да погоди ты. Я же уже писал - в Рзн приехал мой бывший, достал меня звонками сука. Потом продолжим с тобой беседу, если что."
+        ]), replyOpt);
+    }
+  }
 });
 
+// Завершение работы
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
