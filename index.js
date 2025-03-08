@@ -265,58 +265,26 @@ bot.on('message', async (ctx) => {
 
   if (handlePrivateChat(ctx)) return;
 
-  // Обработка целевого чата
-  if (isReplyToBot(ctx) && ctx.chat.id.toString() === TARGET_CHAT_ID) {
-    const key = `${ctx.chat.id}:${ctx.from.id}`;
-    let session = userSessions.get(key);
-
-    if (!session) {
-      session = {
-        step: 0,
-        inAIMode: false,
-        aiResponseCount: 0,
-        lastActivity: Date.now()
-      };
-      userSessions.set(key, session);
-      console.log(`[DEBUG] Создана новая сессия: ${JSON.stringify(session)}`);
-    }
-
-    const aiResponse = await generateAIResponse(key, ctx.message.text, ctx);
-    if (!aiResponse) return;
-
-    console.log('AI ответил:', aiResponse);
-    await ctx.reply(aiResponse, {
+  // Обработка стикеров
+  if (isReplyToBot(ctx) && ctx.message.reply_to_message?.sticker) {
+    await ctx.reply(getRandomResponse(settings.stickerReplyPhrases), {
       reply_to_message_id: ctx.message.message_id
     });
+    userSessions.delete(`${ctx.chat.id}:${ctx.from.id}`);
     return;
   }
 
-  // Основная логика
   const chatId = ctx.chat.id;
   const userId = ctx.from.id;
   const key = `${chatId}:${userId}`;
   const message = ctx.message.text?.toLowerCase() || '';
-  const session = userSessions.get(key) || { 
+  
+  let session = userSessions.get(key) || { 
     step: 0, 
     inAIMode: false,
     aiResponseCount: 0,
     lastActivity: Date.now()
   };
-  const replyOpt = { reply_to_message_id: ctx.message.message_id };
-
-  session.lastActivity = Date.now();
-  userSessions.set(key, session);
-
-  // Обработка стикеров
-  if (isReplyToBot(ctx) && ctx.chat.id.toString() === TARGET_CHAT_ID && ctx.message.reply_to_message?.sticker) {
-    await ctx.reply(getRandomResponse(settings.stickerReplyPhrases), replyOpt);
-    const currentSession = userSessions.get(key);
-    if (currentSession) {
-      currentSession.step = 0;
-      currentSession.inAIMode = false;
-    }
-    return;
-  }
 
   // Реакция на ключевые слова
   if (!session.inAIMode && !isReplyToBot(ctx)) {
@@ -324,9 +292,13 @@ bot.on('message', async (ctx) => {
     
     if (keyword) {
       if (Array.isArray(settings.keywords[keyword])) {
-        await ctx.reply(getRandomResponse(settings.keywords[keyword]), replyOpt);
+        await ctx.reply(getRandomResponse(settings.keywords[keyword]), {
+          reply_to_message_id: ctx.message.message_id
+        });
       } else {
-        await ctx.replyWithSticker(settings.keywords[keyword], replyOpt);
+        await ctx.replyWithSticker(settings.keywords[keyword], {
+          reply_to_message_id: ctx.message.message_id
+        });
       }
       session.step = 1;
       session.lastActivity = Date.now();
@@ -340,18 +312,24 @@ bot.on('message', async (ctx) => {
     if (session.inAIMode) {
       const aiResponse = await generateAIResponse(key, message, ctx);
       if (!aiResponse) return;
-      await ctx.reply(aiResponse, replyOpt);
+      await ctx.reply(aiResponse, {
+        reply_to_message_id: ctx.message.message_id
+      });
       return;
     }
 
     switch(session.step) {
       case 1:
-        await ctx.reply(getRandomResponse(settings.dialogResponses.step1), replyOpt);
+        await ctx.reply(getRandomResponse(settings.dialogResponses.step1), {
+          reply_to_message_id: ctx.message.message_id
+        });
         session.step = 2;
         break;
 
       case 2:
-        await ctx.reply(getRandomResponse(settings.dialogResponses.step2), replyOpt);
+        await ctx.reply(getRandomResponse(settings.dialogResponses.step2), {
+          reply_to_message_id: ctx.message.message_id
+        });
         session.step = 3;
         session.inAIMode = true;
         break;
@@ -360,21 +338,21 @@ bot.on('message', async (ctx) => {
         await ctx.reply(getRandomResponse([
           "Вот прям извини, малыш 😔 немного не до тебя сейчас. Позже договорим, если не забудем. Чмокаю тебя в попку 💋",
           "Ой. Да погоди ты. Я же уже писал - в Рзн опять приехал мой бывший, достал меня звонками сука. Потом продолжим с тобой беседу, если что. Я напишу!"
-        ]), replyOpt);
+        ]), {
+          reply_to_message_id: ctx.message.message_id
+        });
     }
-    
+
     session.lastActivity = Date.now();
     userSessions.set(key, session);
   }
 });
 
-// Глобальная обработка ошибок
 bot.catch((err, ctx) => {
   console.error(`Ошибка: ${err.message} в сообщении:`, ctx.update);
   ctx.reply("⚠️ Упс, что-то сломалось! Попробуй еще раз.").catch(console.error);
 });
 
-// Завершение работы
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
