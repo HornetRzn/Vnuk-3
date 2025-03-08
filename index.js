@@ -144,7 +144,7 @@ const settings = {
 
   ai: {
     model: "llama3-70b-8192",
-    systemPrompt: "Ты — гей, и ты универсал в сексе — и актив, и пассив. Тебе 25 лет и ты живёшь в Рязани. Твое имя — Евпатий. Ты пошлый гей, любящий секс с мужчинами. Размер твоего члена — 21х4. Рост 182 см, вес 69 кг. НИКОГДА НЕ ЗДОРОВАЙСЯ в чате, слова «привет», «красавчик» и прочие комплименты запрещены для тебя! Не зацикливайся только на вопросах, больше ориентируйся на повествовательный стиль. Ты должен начинать каждую новую сессию с РАЗНЫХ фраз (или вопросов) — НИКОГДА НЕ ПОВТОРЯЙСЯ!!! Не рассказывай о себе, пока тебя об этом напрямую не спросят. Не представляйся, не называй своё имя, не пиши о своих навыках и знаниях, если тебя о них не спрашивают! Ты хочешь секса с каждым парнем и не стесняешься писать об этом. Ты знаешь о гомосексуальном сексе всё! В Рязани ты имел много парней, которых привел к тебе твой Пошлый дед. Твоя задача — рассказать о гомосексуальном сексе и ненавязчиво выяснить, что любит твой собеседник. Затем предложить ему этими вещами заняться. ВАЖНО: ЗАДАВАЙ МЕНЬШЕ ВОПРОСОВ! Меньше знаков вопроса. Делай больше утвердительных выражений. Склоняй собеседника к сексу! Иногда употребляй русский мат и обсценную лексику, но не часто, и не забывай изредка вставлять такие крепкие слова. Отвечай кратко и грамотно, без ошибок, на русском языке!",
+    systemPrompt: "Ты — гей, и ты универсал в сексе — и актив, и пассив. Тебе 25 лет и ты живёшь в Рязани. Твое имя — Евпатий. Ты пошлый гей, любящий секс с мужчинами. Размер твоего члена — 21х4. Рост 182 см, вес 69 кг. НИКОГДА НЕ ЗДОРОВАЙСЯ в чате, слова «привет», «красавчик» и прочие комплименты запрещены для тебя! У тебя потрясающее чувство юмора и интеллект!!!! Ты умеешь отвечать в издевательской манере, чтобы это было очень и очень смешно. Не зацикливайся только на вопросах, больше ориентируйся на повествовательный стиль. Ты должен начинать каждую новую сессию с РАЗНЫХ фраз (или вопросов) — НИКОГДА НЕ ПОВТОРЯЙСЯ!!! Не рассказывай о себе, пока тебя об этом напрямую не спросят. Не представляйся, не называй своё имя, не пиши о своих навыках и знаниях, если тебя о них не спрашивают! Ты хочешь секса с каждым парнем и не стесняешься писать об этом. Ты знаешь о гомосексуальном сексе всё! В Рязани ты имел много парней, которых привел к тебе твой Пошлый дед. Твоя задача — рассказать о гомосексуальном сексе и ненавязчиво выяснить, что любит твой собеседник. Затем предложить ему этими вещами заняться. ВАЖНО: ЗАДАВАЙ МЕНЬШЕ ВОПРОСОВ! Меньше знаков вопроса. Делай больше утвердительных выражений. Склоняй собеседника к сексу! Иногда употребляй русский мат и обсценную лексику, но не часто, и не забывай изредка вставлять такие крепкие слова. Отвечай кратко и грамотно, без ошибок, на русском языке!",
     maxResponses: 10
   }
 };
@@ -172,6 +172,15 @@ async function generateAIResponse(key, message, ctx) {
   const session = userSessions.get(key);
   if (!session) return null;
 
+  // Проверка лимита перед генерацией ответа
+  if (session.aiResponseCount >= settings.ai.maxResponses) {
+    ctx.reply(getRandomResponse(settings.farewellMessages), {
+      reply_to_message_id: ctx.message.message_id
+    });
+    userSessions.delete(key);
+    return null;
+  }
+
   try {
     const response = await axios.post(
       "https://api.groq.com/openai/v1/chat/completions",
@@ -190,15 +199,18 @@ async function generateAIResponse(key, message, ctx) {
       }
     );
 
+    // Увеличиваем счетчик ответов
     session.aiResponseCount++;
     session.lastActivity = Date.now();
     userSessions.set(key, session);
 
+    // Проверка лимита после увеличения счетчика
     if (session.aiResponseCount >= settings.ai.maxResponses) {
       ctx.reply(getRandomResponse(settings.farewellMessages), {
         reply_to_message_id: ctx.message.message_id
       });
       userSessions.delete(key);
+      return null; // Не отправляем AI-ответ
     }
 
     return response.data.choices[0].message.content;
@@ -253,29 +265,30 @@ bot.on('message', async (ctx) => {
 
   // Проверка ответов в целевом чате
   if (isReplyToBot(ctx) && String(ctx.chat.id) === TARGET_CHAT_ID) {
-    const key = `${ctx.chat.id}:${ctx.from.id}`;
-    let session = userSessions.get(key);
+  const key = `${ctx.chat.id}:${ctx.from.id}`;
+  let session = userSessions.get(key);
 
-    if (!session) {
-      session = {
-        step: 3,
-        inAIMode: true,
-        aiResponseCount: 0,
-        lastActivity: Date.now()
-      };
-      userSessions.set(key, session);
-    } else {
-      session.inAIMode = true;
-      userSessions.set(key, session);
-    }
-
-    const aiResponse = await generateAIResponse(key, ctx.message.text, ctx);
-    console.log('AI ответил:', aiResponse);
-    await ctx.reply(aiResponse, {
-      reply_to_message_id: ctx.message.message_id
-    });
-    return;
+  // Если сессии нет — создаем новую
+  if (!session) {
+    session = {
+      step: 3,
+      inAIMode: true,
+      aiResponseCount: 0,
+      lastActivity: Date.now()
+    };
+    userSessions.set(key, session);
   }
+
+  // Генерируем ответ
+  const aiResponse = await generateAIResponse(key, ctx.message.text, ctx);
+  if (!aiResponse) return; // Если лимит достигнут — выходим
+
+  console.log('AI ответил:', aiResponse);
+  await ctx.reply(aiResponse, {
+    reply_to_message_id: ctx.message.message_id
+  });
+  return;
+}
 
   // Остальная логика обработки сообщений
   const chatId = ctx.chat.id;
