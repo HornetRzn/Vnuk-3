@@ -270,17 +270,24 @@ bot.on('message', async (ctx) => {
 
   // Проверка ответов в целевом чате
   if (isReplyToBot(ctx) && String(ctx.chat.id) === TARGET_CHAT_ID) {
+  const key = `${ctx.chat.id}:${ctx.from.id}`;
+  let session = userSessions.get(key);
 
-// LOG 2: Логируем активацию AI-режима
-    console.log('Активация AI-режима для:', ctx.from.id);
-
-    const key = `${ctx.chat.id}:${ctx.from.id}`;
-    userSessions.set(key, {
+  // Если сессии нет — создаем новую
+  if (!session) {
+    session = { 
       step: 3,
       inAIMode: true,
       aiResponseCount: 0,
       lastActivity: Date.now()
-    });
+    };
+    userSessions.set(key, session);
+  } else {
+    // Если сессия уже есть — обновляем флаг AI-режима
+    session.inAIMode = true;
+    userSessions.set(key, session);
+  }
+}
 
     const aiResponse = await generateAIResponse(key, ctx.message.text, ctx);
 
@@ -361,13 +368,12 @@ bot.on('message', async (ctx) => {
         break;
 
       case 2:
-        await ctx.reply(getRandomResponse(settings.dialogResponses.step2), replyOpt);
-        userSessions.set(key, { 
-          step: 3, 
-          inAIMode: true,
-          aiResponseCount: 0,
-          lastActivity: Date.now()
-        });
+  userSessions.set(key, {
+    ...session, // ✅ Сохраняем текущие данные сессии
+    step: 3,
+    inAIMode: true,
+    lastActivity: Date.now()
+  });
         break;
 
       default:
