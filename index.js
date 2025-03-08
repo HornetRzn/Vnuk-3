@@ -10,18 +10,15 @@ app.use(express.json());
 app.listen(process.env.PORT || 3000);
 
 const bot = new Telegraf(process.env.TOKEN);
+const TARGET_CHAT_ID = "-1002311068598"; // Замените на ваш целевой чат
 
-const TARGET_CHAT_ID = "-1002311068598";
-
-// Проверка прав бота
+// Проверка прав бота в целевом чате
 async function checkBotPermissions() {
   try {
     const chat = await bot.telegram.getChat(TARGET_CHAT_ID);
-    if (chat.permissions) {
-      console.log('Bot permissions:', chat.permissions);
-    }
+    console.log('Права бота:', chat.permissions);
   } catch (error) {
-    console.error('Permission check error:', error);
+    console.error('Ошибка проверки прав:', error);
   }
 }
 checkBotPermissions();
@@ -32,31 +29,52 @@ const webhookUrl = `https://vnuk-3.onrender.com${webhookPath}`;
 bot.telegram.setWebhook(webhookUrl).catch(console.error);
 app.use(bot.webhookCallback(webhookPath));
 
-// Хранилища состояний
+// Хранилище сессий пользователей
 const userSessions = new Map();
-const SESSION_TIMEOUT = 15 * 60 * 1000;
+const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 минут
 
+// Очистка старых сессий
 setInterval(() => {
   const now = Date.now();
   userSessions.forEach((session, key) => {
     if (now - session.lastActivity > SESSION_TIMEOUT) {
       userSessions.delete(key);
-      console.log(`Сессия ${key} удалена по таймауту`);
+      console.log(`Сессия ${key} удалена`);
     }
   });
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000); // Каждые 5 минут
 
+// Настройки ответов
 const settings = {
-  privateChatResponse: 'Я не стеснительный, поэтому люблю публичное общение 😎 Подписывайся на «ГЕЙ-РЯЗАНЬ» — https://t.me/hornetrzn',
-  // ... остальные настройки ...
+  privateChatResponse: 'Общайтесь со мной в группе: https://t.me/hornetrzn',
+  keywords: {
+    // ... (ваши ключевые слова и стикеры) ...
+  },
+  farewellMessages: [
+    'Пока! Напишите позже.',
+    'До связи!'
+  ],
+  dialogResponses: {
+    step1: ['Ответ 1', 'Ответ 2'],
+    step2: ['Ответ 3', 'Ответ 4']
+  },
+  stickerReplyPhrases: ['Стикер получен!'],
+  ai: {
+    model: "llama3-70b-8192",
+    systemPrompt: "Вы играете роль гей-бота...",
+    maxResponses: 10
+  }
 };
 
+// Генерация случайного ответа
 function getRandomResponse(responses) {
   return responses[Math.floor(Math.random() * responses.length)];
 }
 
+// Проверка приватного чата
 const isPrivateChat = (ctx) => ctx.chat?.type === 'private';
 
+// Обработка приватного чата
 function handlePrivateChat(ctx) {
   if (isPrivateChat(ctx)) {
     ctx.reply(settings.privateChatResponse);
@@ -65,9 +83,11 @@ function handlePrivateChat(ctx) {
   return false;
 }
 
+// Проверка ответа боту
 const isReplyToBot = (ctx) => 
   ctx.message?.reply_to_message?.from?.id === ctx.botInfo.id;
 
+// Генерация AI-ответа
 async function generateAIResponse(key, message, ctx) {
   const session = userSessions.get(key);
   if (!session) return null;
@@ -91,8 +111,6 @@ async function generateAIResponse(key, message, ctx) {
     );
 
     session.aiResponseCount++;
-    console.log(`[DEBUG] Ответов: ${session.aiResponseCount}/${settings.ai.maxResponses}`);
-
     session.lastActivity = Date.now();
     userSessions.set(key, session);
 
@@ -107,32 +125,24 @@ async function generateAIResponse(key, message, ctx) {
     return response.data.choices[0].message.content;
   } catch (error) {
     console.error("AI Error:", error);
-    return getRandomResponse([
-      "Голова разболелась 🤒",
-      "Чёт я торможу. Погоди...",
-      "Блин. Я, кажется, телефон разбил 😳"
-    ]);
+    return "Ошибка генерации ответа";
   }
 }
 
+// Команда для отправки медиа
 bot.command('etonensecret', async (ctx) => {
   if (isPrivateChat(ctx)) {
-    // Получаем медиафайл из сообщения
     const mediaTypes = ['photo', 'video', 'audio', 'document'];
     const mediaType = mediaTypes.find(type => ctx.message[type]);
     const file = mediaType ? ctx.message[mediaType] : null;
-    
-    // Получаем подпись или текст
     const caption = ctx.message.caption?.replace(/^\/etonensecret\s*/, '') || '';
-    const text = ctx.message.text?.replace(/^\/etonensecret\s*/, '') || '';
 
-    if (!file && !text) {
-      return ctx.reply('❌ Нужно прикрепить файл или написать текст');
+    if (!file && !ctx.message.text) {
+      return ctx.reply('❌ Прикрепите файл или напишите текст');
     }
 
     try {
       if (file) {
-        // Определяем метод отправки по типу медиа
         const methodMap = {
           photo: 'sendPhoto',
           video: 'sendVideo',
@@ -143,55 +153,62 @@ bot.command('etonensecret', async (ctx) => {
         await ctx.telegram[methodMap[mediaType]](
           TARGET_CHAT_ID, 
           mediaType === 'photo' ? file[0].file_id : file.file_id,
-          { caption: caption || text }
+          { caption }
         );
       } else {
-        await ctx.telegram.sendMessage(TARGET_CHAT_ID, text);
+        await ctx.telegram.sendMessage(TARGET_CHAT_ID, ctx.message.text);
       }
 
-      // Создаем сессию только после успешной отправки
-      const initiatorKey = `${TARGET_CHAT_ID}:${ctx.from.id}`;
-      userSessions.set(initiatorKey, {
-        step: 1,
-        inAIMode: false,
-        aiResponseCount: 0,
-        lastActivity: Date.now()
-      });
-
-      ctx.reply("✅ Контент отправлен! Ответь на него в целевом чате.");
+      ctx.reply("✅ Контент отправлен!");
     } catch (error) {
       console.error('Send error:', error);
-      ctx.reply(`❌ Ошибка отправки: ${error.message}`);
+      ctx.reply(`❌ Ошибка: ${error.message}`);
     }
   } else {
-    ctx.reply('Эта команда работает только в личных сообщениях');
+    ctx.reply('Команда работает только в личных сообщениях');
   }
 });
 
+// Обработчик всех сообщений
 bot.on('message', async (ctx) => {
   console.log('Получено сообщение:', {
     chatId: ctx.chat.id,
     userId: ctx.from.id,
     text: ctx.message.text,
-    isReply: !!ctx.message.reply_to_message
+    media: ctx.message.photo || ctx.message.video || ctx.message.document
   });
 
   if (handlePrivateChat(ctx)) return;
 
-  // Обработка стикеров
-  if (isReplyToBot(ctx) && ctx.message.reply_to_message?.sticker) {
-    await ctx.reply(getRandomResponse(settings.stickerReplyPhrases), {
-      reply_to_message_id: ctx.message.message_id
-    });
-    userSessions.delete(`${ctx.chat.id}:${ctx.from.id}`);
-    return;
+  // Обработка медиа
+  const mediaTypes = ['photo', 'video', 'document'];
+  const mediaType = mediaTypes.find(type => ctx.message[type]);
+  
+  if (mediaType) {
+    try {
+      const file = mediaType === 'photo' 
+        ? ctx.message.photo[ctx.message.photo.length - 1] 
+        : ctx.message[mediaType];
+      
+      await ctx.telegram.sendMessage(
+        TARGET_CHAT_ID,
+        `📤 Медиа от @${ctx.from.username}\nТип: ${mediaType}`
+      );
+      
+      await ctx.telegram[`send${mediaType[0].toUpperCase() + mediaType.slice(1)}`](
+        TARGET_CHAT_ID,
+        file.file_id
+      );
+      
+      return ctx.reply("✅ Медиа отправлено!");
+    } catch (error) {
+      console.error('Media error:', error);
+      return ctx.reply("❌ Ошибка отправки медиа");
+    }
   }
 
-  const chatId = ctx.chat.id;
-  const userId = ctx.from.id;
-  const key = `${chatId}:${userId}`;
-  const message = ctx.message.text?.toLowerCase() || '';
-  
+  // Обработка текста
+  const key = `${ctx.chat.id}:${ctx.from.id}`;
   let session = userSessions.get(key) || { 
     step: 0, 
     inAIMode: false,
@@ -199,19 +216,13 @@ bot.on('message', async (ctx) => {
     lastActivity: Date.now()
   };
 
-  // Реакция на ключевые слова
   if (!session.inAIMode && !isReplyToBot(ctx)) {
-    const keyword = Object.keys(settings.keywords).find(k => message.includes(k));
-    
+    const keyword = Object.keys(settings.keywords).find(k => ctx.message.text?.includes(k));
     if (keyword) {
       if (Array.isArray(settings.keywords[keyword])) {
-        await ctx.reply(getRandomResponse(settings.keywords[keyword]), {
-          reply_to_message_id: ctx.message.message_id
-        });
+        await ctx.reply(getRandomResponse(settings.keywords[keyword]));
       } else {
-        await ctx.replyWithSticker(settings.keywords[keyword], {
-          reply_to_message_id: ctx.message.message_id
-        });
+        await ctx.replyWithSticker(settings.keywords[keyword]);
       }
       session.step = 1;
       session.lastActivity = Date.now();
@@ -220,55 +231,41 @@ bot.on('message', async (ctx) => {
     }
   }
 
-  // Пошаговая логика ответов
   if (isReplyToBot(ctx)) {
     if (session.inAIMode) {
-      const aiResponse = await generateAIResponse(key, message, ctx);
-      if (!aiResponse) return;
-      await ctx.reply(aiResponse, {
-        reply_to_message_id: ctx.message.message_id
-      });
+      const aiResponse = await generateAIResponse(key, ctx.message.text, ctx);
+      if (aiResponse) await ctx.reply(aiResponse);
       return;
     }
 
     switch(session.step) {
       case 1:
-        await ctx.reply(getRandomResponse(settings.dialogResponses.step1), {
-          reply_to_message_id: ctx.message.message_id
-        });
+        await ctx.reply(getRandomResponse(settings.dialogResponses.step1));
         session.step = 2;
         break;
-
       case 2:
-        await ctx.reply(getRandomResponse(settings.dialogResponses.step2), {
-          reply_to_message_id: ctx.message.message_id
-        });
-        session.step = 3;
+        await ctx.reply(getRandomResponse(settings.dialogResponses.step2));
         session.inAIMode = true;
         break;
-
       default:
-        await ctx.reply(getRandomResponse([
-          "Вот прям извини, малыш 😔 немного не до тебя сейчас. Позже договорим, если не забудем. Чмокаю тебя в попку 💋",
-          "Ой. Да погоди ты. Я же уже писал - в Рзн опять приехал мой бывший, достал меня звонками сука. Потом продолжим с тобой беседу, если что. Я напишу!"
-        ]), {
-          reply_to_message_id: ctx.message.message_id
-        });
+        await ctx.reply(getRandomResponse(settings.farewellMessages));
     }
-
     session.lastActivity = Date.now();
     userSessions.set(key, session);
   }
 });
 
+// Обработка ошибок
 bot.catch((err, ctx) => {
-  console.error(`Ошибка: ${err.message} в сообщении:`, ctx.update);
-  ctx.reply("⚠️ Упс, что-то сломалось! Попробуй еще раз.").catch(console.error);
+  console.error(`Ошибка: ${err.message}`);
+  ctx.reply("⚠️ Произошла ошибка").catch(console.error);
 });
 
+// Завершение работы
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
+// Роут для проверки работы
 app.get('/', (req, res) => {
-  res.send('Bot is alive!');
+  res.send('Бот активен');
 });
