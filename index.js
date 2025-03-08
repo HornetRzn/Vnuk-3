@@ -1,64 +1,186 @@
 const { Telegraf } = require('telegraf');
-const express = require('express');
-const rateLimit = require('express-rate-limit');
 const axios = require('axios');
-const crypto = require('crypto');
+const express = require('express');
+
+// ⚠️ Проверка переменных окружения
+if (!process.env.TOKEN) throw new Error('TOKEN не установлен!');
+if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY не установлен!');
+
 const app = express();
-
-// Конфигурация
-const PORT = process.env.PORT || 3000;
-const WEBHOOK_PATH = `/telegraf/${new Telegraf(process.env.TOKEN).secretPathComponent()}`;
-const WEBHOOK_URL = `https://vnuk-3.onrender.com${WEBHOOK_PATH}`;
-const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 минут
-const API_RATE_LIMIT = 100; // Запросов за 15 минут
-
-// Инициализация
-const bot = new Telegraf(process.env.TOKEN);
-const userSessions = new Map();
-
-// Защита от перегрузок
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: API_RATE_LIMIT,
-  message: 'Слишком много запросов, попробуйте позже'
-});
-app.use(limiter);
-
-// Безопасность вебхука
-app.use((req, res, next) => {
-  const isValid = verifyTelegramRequest(req, process.env.TOKEN);
-  if (isValid) next();
-  else res.status(403).end('Forbidden');
-});
-
-// Настройка бота
-bot.telegram.setWebhook(WEBHOOK_URL).catch(console.error);
 app.use(express.json());
-app.use(bot.webhookCallback(WEBHOOK_PATH));
+app.listen(process.env.PORT || 3000);
 
-// Конфигурация ответов
+const bot = new Telegraf(process.env.TOKEN);
+
+// Вебхук для Render
+const webhookPath = `/telegraf/${bot.secretPathComponent()}`;
+const webhookUrl = `https://vnuk-3.onrender.com${webhookPath}`;
+bot.telegram.setWebhook(webhookUrl).catch(console.error);
+app.use(bot.webhookCallback(webhookPath));
+
+// Хранилища состояний
+const userSessions = new Map();
+const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 минут бездействия
+
+setInterval(() => {
+  const now = Date.now();
+  userSessions.forEach((session, key) => {
+    if (now - session.lastActivity > SESSION_TIMEOUT) {
+      userSessions.delete(key);
+      console.log(`Сессия ${key} удалена по таймауту`);
+    }
+  });
+}, 5 * 60 * 1000); // Проверка каждые 5 минут
+
 const settings = {
   privateChatResponse: 'Я не стеснительный, поэтому люблю публичное общение 😎 Подписывайся на «ГЕЙ-РЯЗАНЬ» — https://t.me/hornetrzn',
+
   keywords: {
     'в рот': [
       'В Песочне раньше жил пацанчик, тоже любил оральное дело. В прошлый вторник задохнулся от оргазма 😭',
-      // ... (остальные ваши фразы из исходного кода)
+      'Длинный и толстенький?',
+      'Я на пл. Победы (чуть правее клуба «Deep») прошлой осенью ночью оформился с рандомным незнакомцем 👀 бывает же такое…',
+      'Ты забыл какое время сейчас идёт? Ни капли в рот, ни мил лиметра в жопу 🤫',
+      'Я бы отсосал у Юры Борисова. У него, наверное, маленький член, но лысики меня прям заводят 🤤',
+      'Глубоко? Прям в горло?',
+      'Прально. Это практичнее ☝🏻 ни клизма не нужна, ни подготовка.',
+      'Кстати. Ты в курсе, что от горлового минета залететь можно? Даже парню 😳',
+      'В Рязани вариантов ПОЛНО 😎 я в Тамбове жил 4 года, вот там конкретная бездна(((',
+      'Прям как в лютом гей-порно?'
     ],
-    // ... (остальные ключевые слова)
+    'сообщали': [
+      'Пока меня дед не перевёз в Рязань из Тамбова, я вообще жил в вакууме. Думал, что я – единственный гей 👀',
+      'Самое интересное – мало таких геев, которые могут признаться себе в том, что они полигамны. А полигамны МЫ ВСЕ! 😬',
+      'Когда я дрочу, часто думаю об этом. Думать – это вообще моя самая хуёвая привычка.',
+      'И тут все дружно вздрочнули 💦',
+      'А судьи кто?',
+      'В Рязани тоже много раз такое было. Кстати, я не имею ничего против людей с беспорядочной сексуальной жизнью 🤤',
+      'История про моего деда буквально.',
+      'Читаю новости и понимаю, как хочется близости с тем, кому я и не нужен-то, по большому счёту 🤧',
+      'Я вчера посчитал количество своих парней в оральном и анальном. Не знаю, зачем это сейчас пишу. Просто хочу, чтобы вы знали: человек в ахуе!',
+      'У меня не было секса уже 12 часов. Держу в курсе 🕛'
+    ],
+    'пасс': [
+      'А какой возраст интересует? 🧐',
+      'Орально или анально?',
+      'Скоро лето. Парней можно будет прямо на рязанских улицах снимать, без всяких чятикоф 🤤',
+      'Без презерватива нужно. Оценить, так сказать, полное погружение 💦',
+      'Давно ищешь-то?',
+      'Может, без секса? Полежим где-нибудь, кальян покурим, пососём(ся) 🤤',
+      'В Канищево поехали! Прям не район, а гей-столица Рязанского региона 💪🏾',
+      'Мне вот почему-то нравятся хуястые пассивы. Ничего поделать с собой не могу 👿 других я почти и не трахал.',
+      'Дед меня никуда не пускает до субботы, а так – я бы выебал(ся) с удовольствием 🫦',
+      'Гость Рязани, наверное'
+    ],
+    'на авто': [
+      'Давай в рот дам 🧐',
+      'Секс в машине так возбуждает?',
+      'В тачке максимум отсос можно оформить. Анально в этих апартаментах не развернуться 💁🏼‍♂️',
+      'Ты прям как Илья Слёзкин))',
+      'Сергей Серёгин, ты ли это???',
+      'Ебался когда-нибудь с парнем в движущемся автомобиле?',
+      'Встретиться всего на 10 минут и кончить...',
+      'У тебя всего двое парней было за всю жизнь. И те с рязанских окраин, обиженных всеми гей-богами Вселенной 😏',
+      'Дрочево! Необходимо жёсткое получасовое дрочево!',
+      'Хорошие и опытные пассивы давно перевелись на земле рязанской 💁🏼‍♂️',
+      'Гей-оргия нужна! По парам уже неинтересно. Гоу паравозиком ебаться 😜',
+      'Щас бы двух пассов спортивненьких... и хуястых желательно 🫦'
+    ],
+    'борми': 'CAACAgEAAxkBAAEBIi9nydkVOnLuwLv4TFU1VlYmgf5ilgACBwYAAoAPiUWHGBVJ2wPLITYE',
+    'дрочить': 'CAACAgEAAxkBAAEBIlVnydyFOdGue8VSgORhu7Uumyy5qAACmwYAAgJDiEWVwjyAs-QrNTYE',
+    'пидор': 'CAACAgEAAxkBAAEBIitnybXyhd0-YWqfmucolWHhI-7ERgACSQUAAqowiUX9KXev6BUQ4DYE',
+    'минет': 'CAACAgEAAxkBAAEBIilnybXMx5P1glipjfoF54XEk6ObAgACPgQAAtoqiEW0evyXoXMyTjYE',
+    'отсосет': 'CAACAgEAAxkBAAEBIilnybXMx5P1glipjfoF54XEk6ObAgACPgQAAtoqiEW0evyXoXMyTjYE',
+    'отсосу': 'CAACAgEAAxkBAAEBIilnybXMx5P1glipjfoF54XEk6ObAgACPgQAAtoqiEW0evyXoXMyTjYE',
+    'есть пассив': 'CAACAgEAAxkBAAEBIj9nydntX-FbHGuMsXQYC3wOBqS1pgACywQAAucFiUUDrQ6MGpGJ-DYE',
+    'параметры': 'CAACAgEAAxkBAAEBIkFnydof_YNGvOCCLr6ALGrPgp_2BQACEQUAAjukiUXFFXd_IG6ZGzYE',
+    'познакомлюсь': 'CAACAgEAAxkBAAEBIkNnydp0WA9y6WvAJ4jYyazfkh9SkgACQgcAAtzFiUUGHxbLwu8XpzYE',
+    'ищу': 'CAACAgEAAxkBAAEBIkNnydp0WA9y6WvAJ4jYyazfkh9SkgACQgcAAtzFiUUGHxbLwu8XpzYE',
+    'группу': 'CAACAgEAAxkBAAEBIkVnydrZrIHYiixFyhvpxuIwqsMudQACdAUAApwGiEVsVYAE9s962jYE',
+    'ты на хуй': 'CAACAgEAAxkBAAEBIktnydszBNCtCYB0MOBNFYWRbf7k5gACmgQAAggVkEUMFO0AAQspTcU2BA',
+    'доброе утро': 'CAACAgEAAxkBAAEBIk1nydttIprLic-RnT0kM0lZci0GBAACfwgAAvZhiEULB5CW30ssjzYE',
+    'любовь': 'CAACAgEAAxkBAAEBIk9nydu0e7Y97rwQbyBLx2xsw20UMgAC1wQAAumDiUWFuyREL2OJkzYE',
+    'в жопу': 'CAACAgEAAxkBAAEBIitnybXyhd0-YWqfmucolWHhI-7ERgACSQUAAqowiUX9KXev6BUQ4DYE',
+    'большие члены': 'CAACAgEAAxkBAAEBIldnyd0-zjVSv7VQqpRW_zey34gV3AACggQAAsROiUWOWDYuFvxkkjYE'
   },
-  // ... (остальные настройки из вашего исходного кода)
+
+  farewellMessages: [
+    'Ладно, пацан. Секса от тебя не добьёшься. Пойду вздрочну 😏',
+    'Чёта я утомился. Позже договорим 🤨',
+    'Ты пока из Рзн никуда не собираешься? Я через пару дней напишу, можт. Поебёмся 😈',
+    'Какой-то неопределённый ты. Утомил 🤨 так много вопросов и так мало сути... я ушёл смотреть гей-порно. На хаб сегодня завезли новинки',
+    'Что-то ты мне подозрительным кажешься. Долгое пиздабольство напрягает прям 👀 нужно быть осторожнее. Вот тут ваши парни писали уже 👉🏻 https://t.me/hornetrzn/654 👈🏻 пойду поосторожничаю малость',
+    'Парнишка ты интересный, конечно. Давай позже пообщаемся, а то ко мне два пассика из Коломны приехали. Нужно накормить 🍆',
+    'Странные мысли у тебя 👀 Слушай, зайкамая… заполни анкету, даже если ты не из Рязани 👉🏻 https://t.me/hornetrzn/805 👈🏻 позже поболтаем! Письками 😆',
+    'Хватит на сегодня. А то член отвалится 😏',
+    'Упс... кажется, меня пришли трахать. Извини, но пока не до тебя 👋🏼'
+  ],
+
+  dialogResponses: {
+    step1: [
+      'Я точно сказать не могу. Пошлый дед в курсе, но он забухал(((',
+      'Какой-то неопредёленный коммент 🙄',
+      'Признайся честно: уже дрочил сегодня? 🤤',
+      'Это ты мне? 👀',
+      'Лучше скажи, какое у тебя в Рязани любимое место для экстрима',
+      'Мне интересно, как ты выглядишь в жёлтых стрингах',
+      'Я вот от этой картины прям рыдаю https://t.me/hornetrzn/823 воспоминания….🤧',
+      'Пользовался чем-нибудь из этого? https://t.me/hornetrzn/723',
+      'Вот этот в твоём вкусе? https://t.me/hornetrzn/696',
+      'Лучше деревенской романтики ничего нет https://t.me/hornetrzn/717'
+    ],
+    step2: [
+      'Хочешь поговорить об этом? 👀',
+      'Знаешь, что я думаю? 🤔',
+      'Ты не думал свалить из Рязани?',
+      'Странный ты 👀',
+      'Каждому своё.',
+      'Это плохо.',
+      'Я в чате «Гей-Рязань» недавно, так что сложно сказать',
+      'У меня аж член зачесался... не надо было лобок брить утром.',
+      'Вот так всегда. С кем я ни говорю...',
+      'Ебануться. У тебя со всеми парнями так?'
+    ]
+  },
+
+  stickerReplyPhrases: [
+    'Это всего лишь стикер, но зато сколько смысла 😇',
+    'Даже не знаю, что и сказать 🤷🏼‍♂️',
+    'Просто люблю этот стикер)',
+    'Всё будет хорошо 🫶',
+    'Да так…',
+    'Ты точно из Рязани? 🧐',
+    'Ага.',
+    'Пойду передёрну.',
+    'Всё нормально 🫷пойду напишу бывшему ёбарю.',
+    'В Рязани только так ☝🏻'
+  ],
+
+  ai: {
+    model: "llama3-70b-8192",
+    systemPrompt: "Ты — гей, и ты универсал в сексе — и актив, и пассив. Тебе 25 лет и ты живёшь в Рязани. Твое имя — Евпатий. Раньше ты долго жил в Массачусетсе, поэтому иногда коверкаешь слова — ссылайся на это, если тебя спрашивают.  Ты пошлый гей, любящий секс с мужчинами. Размер твоего члена — 21х4. Рост 182 см, вес 69 кг. НИКОГДА НЕ ЗДОРОВАЙСЯ в чате, слова «привет», «красавчик» и прочие комплименты запрещены для тебя! У тебя потрясающее чувство юмора и интеллект!!!! Ты умеешь отвечать в издевательской манере, чтобы это было очень и очень смешно. Не зацикливайся только на вопросах, больше ориентируйся на повествовательный стиль. Ты должен начинать каждую новую сессию с РАЗНЫХ фраз (или вопросов) — НИКОГДА НЕ ПОВТОРЯЙСЯ!!! Не рассказывай о себе, пока тебя об этом напрямую не спросят. Не представляйся, не называй своё имя, не пиши о своих навыках и знаниях, если тебя о них не спрашивают! Ты хочешь секса с каждым парнем и не стесняешься писать об этом. Ты знаешь о гомосексуальном сексе всё! В Рязани ты имел много парней, которых привел к тебе твой Пошлый дед. Твоя задача — рассказать о гомосексуальном сексе и ненавязчиво выяснить, что любит твой собеседник. Затем предложить ему этими вещами заняться. ВАЖНО: ЗАДАВАЙ МЕНЬШЕ ВОПРОСОВ! Меньше знаков вопроса. Делай больше утвердительных выражений. Склоняй собеседника к сексу! Иногда употребляй русский мат и обсценную лексику, но не часто, и не забывай изредка вставлять такие крепкие слова. Отвечай кратко и грамотно, без ошибок, на русском языке!",
+    maxResponses: 10
+  }
 };
 
-// Вспомогательные функции
-const isPrivateChat = (ctx) => ctx.chat?.type === 'private';
-const isReplyToBot = (ctx) => ctx.message?.reply_to_message?.from?.id === ctx.botInfo.id;
+const TARGET_CHAT_ID = "-1002311068598";
 
-function verifyTelegramRequest(req, token) {
-  const secret = crypto.createHmac('sha256', token)
-    .update(JSON.stringify(req.body))
-    .digest('hex');
-  return req.headers['x-telegram-bot-api-secret-token'] === secret;
+function getRandomResponse(responses) {
+  return responses[Math.floor(Math.random() * responses.length)];
 }
+
+const isPrivateChat = (ctx) => ctx.chat?.type === 'private';
+
+function handlePrivateChat(ctx) {
+  if (isPrivateChat(ctx)) {
+    ctx.reply(settings.privateChatResponse);
+    return true;
+  }
+  return false;
+}
+
+const isReplyToBot = (ctx) => 
+  ctx.message?.reply_to_message?.from?.id === ctx.botInfo.id;
 
 async function generateAIResponse(key, message, ctx) {
   const session = userSessions.get(key);
@@ -83,11 +205,15 @@ async function generateAIResponse(key, message, ctx) {
     );
 
     session.aiResponseCount++;
+    console.log(`[DEBUG] Ответов: ${session.aiResponseCount}/${settings.ai.maxResponses}`);
+
     session.lastActivity = Date.now();
     userSessions.set(key, session);
 
     if (session.aiResponseCount >= settings.ai.maxResponses) {
-      ctx.reply(getRandomResponse(settings.farewellMessages));
+      ctx.reply(getRandomResponse(settings.farewellMessages), {
+        reply_to_message_id: ctx.message.message_id
+      });
       userSessions.delete(key);
       return null;
     }
@@ -103,129 +229,166 @@ async function generateAIResponse(key, message, ctx) {
   }
 }
 
-// Основная логика
+// Обработчики команд
 bot.command('start', (ctx) => {
-  if (isPrivateChat(ctx)) {
-    ctx.reply(settings.privateChatResponse);
-    return;
-  }
-  
-  const key = `${ctx.chat.id}:${ctx.from.id}`;
-  userSessions.delete(key);
-  ctx.reply('Подпишись на «ГЕЙ-РЯЗАНЬ». Пообщаемся в чате.');
+  if (handlePrivateChat(ctx)) return;
+  const chatId = ctx.chat.id;
+  const userId = ctx.from.id;
+  userSessions.delete(`${chatId}:${userId}`);
+  ctx.reply('Подпишись на «ГЕЙ-РЯЗАНЬ». Пообщаемся в чате.', {
+    reply_to_message_id: ctx.message.message_id
+  });
 });
 
 bot.command('etonensecret', async (ctx) => {
+  console.log('Команда /etonensecret от:', ctx.from.id);
+  console.log('Получена команда /etonensecret:', ctx.message.text);
+
   if (!isPrivateChat(ctx)) return;
-  
+
   const match = ctx.message.text.match(/\/etonensecret\s+(.+)/i);
   if (!match) return ctx.reply("Формат: /etonensecret [ваша фраза]");
-  
+
   try {
-    await ctx.telegram.sendMessage(process.env.TARGET_CHAT_ID, match[1]);
-    ctx.reply("✅ Фраза отправлена!");
+    await ctx.telegram.sendMessage(TARGET_CHAT_ID, match[1]);
+    ctx.reply("✅ Фраза отправлена! Ответь на неё в целевом чате.");
   } catch (error) {
-    ctx.reply("❌ Ошибка отправки");
+    ctx.reply("❌ Ошибка! Проверь ID чата и права бота.");
   }
 });
 
+// Обработчик сообщений
 bot.on('message', async (ctx) => {
-  if (isPrivateChat(ctx)) {
-    ctx.reply(settings.privateChatResponse);
+  console.log('Получено сообщение:', {
+    chatId: ctx.chat.id,
+    userId: ctx.from.id,
+    text: ctx.message.text,
+    isReply: !!ctx.message.reply_to_message
+  });
+
+  if (handlePrivateChat(ctx)) return;
+
+  // Обработка целевого чата
+  if (isReplyToBot(ctx) && ctx.chat.id.toString() === TARGET_CHAT_ID) {
+    const key = `${ctx.chat.id}:${ctx.from.id}`;
+    let session = userSessions.get(key);
+
+    // ⚠️ Исправленная инициализация сессии
+    if (!session) {
+      session = {
+        step: 0,
+        inAIMode: false,
+        aiResponseCount: 0,
+        lastActivity: Date.now()
+      };
+      userSessions.set(key, session);
+      console.log(`[DEBUG] Создана новая сессия: ${JSON.stringify(session)}`);
+    }
+
+    const aiResponse = await generateAIResponse(key, ctx.message.text, ctx);
+    if (!aiResponse) return;
+
+    console.log('AI ответил:', aiResponse);
+    await ctx.reply(aiResponse, {
+      reply_to_message_id: ctx.message.message_id
+    });
     return;
   }
 
+  // Основная логика
   const chatId = ctx.chat.id;
   const userId = ctx.from.id;
   const key = `${chatId}:${userId}`;
   const message = ctx.message.text?.toLowerCase() || '';
-  const replyOpt = { reply_to_message_id: ctx.message.message_id };
-
-  let session = userSessions.get(key) || {
-    step: 0,
+  const session = userSessions.get(key) || { 
+    step: 0, 
     inAIMode: false,
     aiResponseCount: 0,
     lastActivity: Date.now()
   };
+  const replyOpt = { reply_to_message_id: ctx.message.message_id };
 
-  // Обработка ответов в целевом чате
-  if (ctx.chat.id.toString() === process.env.TARGET_CHAT_ID && isReplyToBot(ctx)) {
-    const aiResponse = await generateAIResponse(key, message, ctx);
-    if (aiResponse) await ctx.reply(aiResponse, replyOpt);
-    return;
-  }
+  session.lastActivity = Date.now();
+  userSessions.set(key, session);
 
-  // Обработка стикеров
-  if (ctx.message?.sticker && isReplyToBot(ctx)) {
+  console.log(`[DEBUG] Шаг: ${session.step}, AI-режим: ${session.inAIMode}, Ответов: ${session.aiResponseCount}`);
+
+  // ⚠️ Исправленная обработка стикеров
+  if (isReplyToBot(ctx) && ctx.chat.id.toString() === TARGET_CHAT_ID && ctx.message.reply_to_message?.sticker) {
     await ctx.reply(getRandomResponse(settings.stickerReplyPhrases), replyOpt);
-    userSessions.delete(key);
-    return;
-  }
-
-  // Обработка ключевых слов
-  const keyword = Object.keys(settings.keywords).find(k => message.includes(k));
-  if (keyword && !session.inAIMode) {
-    const response = Array.isArray(settings.keywords[keyword])
-      ? getRandomResponse(settings.keywords[keyword])
-      : settings.keywords[keyword];
-    
-    if (typeof response === 'string') {
-      await ctx.reply(response, replyOpt);
-    } else {
-      await ctx.replyWithSticker(response, replyOpt);
+    const currentSession = userSessions.get(key);
+    if (currentSession) {
+      currentSession.step = 0;
+      currentSession.inAIMode = false;
     }
-    
-    session = { ...session, step: 1, lastActivity: Date.now() };
-    userSessions.set(key, session);
     return;
   }
 
-  // Диалоговый режим
+  if (!session.inAIMode && !isReplyToBot(ctx)) {
+    const keyword = Object.keys(settings.keywords).find(k => message.includes(k));
+    
+    if (keyword) {
+      if (Array.isArray(settings.keywords[keyword])) {
+        await ctx.reply(getRandomResponse(settings.keywords[keyword]), replyOpt);
+      } else {
+        await ctx.replyWithSticker(settings.keywords[keyword], replyOpt);
+      }
+      userSessions.set(key, { 
+        ...session,
+        step: 1,
+        lastActivity: Date.now()
+      });
+      return;
+    }
+  }
+
   if (isReplyToBot(ctx)) {
     if (session.inAIMode) {
       const aiResponse = await generateAIResponse(key, message, ctx);
-      if (aiResponse) await ctx.reply(aiResponse, replyOpt);
+      if (!aiResponse) return;
+      await ctx.reply(aiResponse, replyOpt);
       return;
     }
 
-    switch (session.step) {
-      case 0:
-        await ctx.reply(getRandomResponse(settings.dialogResponses.step1), replyOpt);
-        session = { ...session, step: 1 };
-        break;
+    switch(session.step) {
       case 1:
-        await ctx.reply(getRandomResponse(settings.dialogResponses.step2), replyOpt);
-        session = { ...session, step: 2, inAIMode: true };
+        await ctx.reply(getRandomResponse(settings.dialogResponses.step1), replyOpt);
+        userSessions.set(key, { 
+          ...session,
+          step: 2,
+          lastActivity: Date.now()
+        });
         break;
+
+      case 2:
+        await ctx.reply(getRandomResponse(settings.dialogResponses.step2), replyOpt);
+        userSessions.set(key, {
+          ...session,
+          step: 3,
+          inAIMode: true,
+          lastActivity: Date.now()
+        });
+        break;
+
       default:
         await ctx.reply(getRandomResponse([
-          "Вот прям извини, малыш 😔 немного не до тебя сейчас...",
-          "Ой. Да погоди ты. Я же уже писал..."
+          "Вот прям извини, малыш 😔 немного не до тебя сейчас. Позже договорим, если не забудем. Чмокаю тебя в попку 💋",
+          "Ой. Да погоди ты. Я же уже писал - в Рзн опять приехал мой бывший, достал меня звонками сука. Потом продолжим с тобой беседу, если что. Я напишу!"
         ]), replyOpt);
     }
-
-    session.lastActivity = Date.now();
-    userSessions.set(key, session);
   }
 });
 
-// Очистка сессий
-setInterval(() => {
-  const now = Date.now();
-  userSessions.forEach((session, key) => {
-    if (now - session.lastActivity > SESSION_TIMEOUT) {
-      userSessions.delete(key);
-      console.log(`Сессия ${key} удалена`);
-    }
-  });
-}, 5 * 60 * 1000);
+// ⚠️ Глобальная обработка ошибок
+bot.catch((err, ctx) => {
+  console.error(`Ошибка: ${err.message} в сообщении:`, ctx.update);
+  ctx.reply("⚠️ Упс, что-то сломалось! Попробуй еще раз.").catch(console.error);
+});
 
-// Важный обработчик, который вы просили
-app.get('/', (req, res) => res.send('Bot is alive!'));
-
-// Запуск сервера
-app.listen(PORT, () => console.log(`Сервер запущен на порту ${PORT}`));
-
-// Обработка завершения
+// Завершение работы
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
+app.get('/', (req, res) => {
+  res.send('Bot is alive!');
+});
