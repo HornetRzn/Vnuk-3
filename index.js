@@ -284,7 +284,7 @@ bot.command('etonensecret', async (ctx) => {
 
   if (!isPrivateChat(ctx)) return;
 
-  const match = ctx.message.text.match(/\/etonensecret\s+(.+)/i);
+  const match = ctx.message.text.match(/\/etonensecret\s+([\s\S]*)/i);
   if (!match) return ctx.reply("Формат: /etonensecret [ваша фраза]");
 
   try {
