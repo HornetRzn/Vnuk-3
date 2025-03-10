@@ -1,6 +1,7 @@
 const { Telegraf } = require('telegraf');
 const axios = require('axios');
 const express = require('express');
+const NOTIFICATION_CHAT_ID = "-1002311068598"; // Замените на ваш ID
 
 if (!process.env.TOKEN) throw new Error('TOKEN не установлен!');
 if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY не установлен!');
@@ -19,6 +20,7 @@ app.use(bot.webhookCallback(webhookPath));
 
 // Хранилища состояний
 const userSessions = new Map();
+const privateChatUsers = new Map();
 const SESSION_TIMEOUT = 15 * 60 * 1000;
 
 setInterval(() => {
@@ -185,7 +187,7 @@ const settings = {
   }
 };
 
-const TARGET_CHAT_ID = "-1001992111409";
+const TARGET_CHAT_ID = "-1002311068598";
 
 function getRandomResponse(responses) {
   return responses[Math.floor(Math.random() * responses.length)];
@@ -195,6 +197,14 @@ const isPrivateChat = (ctx) => ctx.chat?.type === 'private';
 
 function handlePrivateChat(ctx) {
   if (isPrivateChat(ctx)) {
+    // Логируем данные пользователя
+    console.log(`👀 Личное сообщение от: 
+      ID: ${ctx.from.id}
+      Имя: ${ctx.from.first_name} ${ctx.from.last_name || ''}
+      Username: @${ctx.from.username || 'нет'}
+      Текст: ${ctx.message.text}`
+    );
+
     ctx.reply(settings.privateChatResponse);
     return true;
   }
