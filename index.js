@@ -187,7 +187,7 @@ const settings = {
   }
 };
 
-const TARGET_CHAT_ID = "-1002311068598";
+const TARGET_CHAT_ID = "-1001992111409";
 
 function getRandomResponse(responses) {
   return responses[Math.floor(Math.random() * responses.length)];
