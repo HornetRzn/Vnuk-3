@@ -202,8 +202,15 @@ function handlePrivateChat(ctx) {
       ID: ${ctx.from.id}
       Имя: ${ctx.from.first_name} ${ctx.from.last_name || ''}
       Username: @${ctx.from.username || 'нет'}
-      Текст: ${ctx.message.text}`
-    );
+      Текст: ${ctx.message.text}`);
+
+    ctx.telegram.sendMessage(
+      NOTIFICATION_CHAT_ID, // Замените на ваш ID!
+      `🔔 Новый контакт!\nИмя: ${ctx.from.first_name}\nUsername: @${ctx.from.username}\nID: ${ctx.from.id}\nСообщение: ${ctx.message.text}`
+    )
+    .catch((err) => {
+      console.error("❌ Ошибка отправки:", err.message);
+    });
 
     ctx.reply(settings.privateChatResponse);
     return true;
